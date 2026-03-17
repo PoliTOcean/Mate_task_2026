@@ -1,4 +1,4 @@
-# MATE ROV 2026 — Computer Science Tasks
+# MATE ROV 2026 — Tasks
 
 **Team:** PoliTOcean — Politecnico di Torino
 **Competizione:** MATE ROV World Championship 2026 — Explorer Class
