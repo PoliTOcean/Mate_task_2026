@@ -1,0 +1,2 @@
+"lunghezza" = 102.8
+"altezza" = 41.1
