@@ -1,0 +1,6 @@
+# Task 1.2 — Coral Garden CV
+opencv-python
+numpy
+
+# Task 2.1 — Crab Detector
+ultralytics
