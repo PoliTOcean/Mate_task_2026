@@ -21,12 +21,12 @@ Il coral garden è una struttura in PVC (1–2,5 m × 36 cm, altezza ignota) con
 
 | Approccio | Metodo | Max punti |
 |---|---|---|
-| **Autonomo** | Fotogrammetria (Meshroom / COLMAP) + CAD | **40 pt** |
+| **CV automatico** | Computer Vision (OpenCV) + CAD SolidWorks | **40 pt** |
 | **Manuale** | Misurazioni + modello CAD | **30 pt** |
 
-L'approccio principale del team è la **fotogrammetria**: il ROV raccoglie immagini del coral garden da più angolazioni, un software di fotogrammetria ricostruisce il modello 3D, che viene poi scalato con la lunghezza fornita dal giudice per ricavarne anche l'altezza.
+L'approccio del team è la **misurazione automatica tramite computer vision**: il ROV posiziona un righello arancione da 50 cm come riferimento metrico e acquisisce una foto della struttura. Lo script `final.py` calcola la scala pixel/cm dal righello, rileva i target colorati, misura lunghezza e altezza dei tubi PVC e scrive i valori in `equations.txt`, che SolidWorks legge automaticamente per scalare il modello CAD.
 
-📁 [`Task 1.2/`](Task%201.2/) — *al momento in sviluppo*
+📁 [`Task 1.2/`](Task%201.2/)
 
 ---
 
@@ -50,7 +50,7 @@ Il campione contiene immagini di tre specie (Green Crab, Rock Crab, Jonah Crab).
 
 | Task | Descrizione | Max punti |
 |---|---|---|
-| 1.2 | Coral Garden Modelling (fotogrammetria) | 40 pt |
+| 1.2 | Coral Garden Modelling (computer vision + CAD) | 40 pt |
 | 2.1 | Invasive Species (image recognition + form) | 20 pt |
 | **Totale CS** | | **60 pt** |
 
@@ -61,7 +61,8 @@ Il campione contiene immagini di tre specie (Green Crab, Rock Crab, Jonah Crab).
 | Componente | Tecnologia |
 |---|---|
 | Object detection | [YOLOv8](https://github.com/ultralytics/ultralytics) (Ultralytics) |
-| Fotogrammetria | [Meshroom](https://alicevision.org/) / [COLMAP](https://colmap.github.io/) |
+| Computer vision | [OpenCV](https://opencv.org/) + NumPy |
+| CAD | SolidWorks (equazioni parametriche) |
 | Training | Google Colab + PyTorch |
 | Linguaggio | Python 3 |
 
@@ -73,7 +74,16 @@ Il campione contiene immagini di tre specie (Green Crab, Rock Crab, Jonah Crab).
 Task CS/
 ├── README.md              ← questo file
 ├── Task 1.2/
-│   └── README.md          ← documentazione fotogrammetria
+│   ├── README.md          ← documentazione computer vision
+│   ├── final.py           ← script principale CV
+│   ├── target.py          ← versione precedente
+│   ├── rilevatore_target.py ← prototipo iniziale
+│   ├── equations.txt      ← output misure → SolidWorks
+│   ├── Coral garden (CAD).SLDPRT ← modello SolidWorks
+│   ├── righello.jpg       ← immagine di test
+│   ├── nuova.jpg          ← immagine di test
+│   ├── Coral garden.zip
+│   └── colar_garden.zip
 └── Task 2.1/
     ├── README.md          ← documentazione crab detector
     ├── best.pt            ← modello YOLOv8 addestrato
@@ -87,12 +97,28 @@ Task CS/
 
 ---
 
-## Avvio rapido — Task 2.1
+## Setup
 
 ```bash
-# Installa le dipendenze
-pip install ultralytics
+# Crea e attiva il virtual environment
+python -m venv .venv
+.venv\Scripts\activate        # Windows
+# source .venv/bin/activate   # Linux/macOS
 
-# Lancia il crab detector sulle immagini in practice/
+# Installa le dipendenze
+pip install -r requirements.txt
+```
+
+## Avvio rapido
+
+### Task 1.2 — Coral Garden CV
+
+```bash
+python "Task 1.2/final.py"
+```
+
+### Task 2.1 — Crab Detector
+
+```bash
 python "Task 2.1/crab_counter.py"
 ```
