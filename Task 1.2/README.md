@@ -11,45 +11,95 @@ Il task consiste nella **modellazione 3D del coral garden** presente nel Flume T
 
 ---
 
-## Approccio scelto: Fotogrammetria autonoma
+## Approccio scelto: Computer Vision su singola immagine
 
-L'approccio principale è la **creazione automatica di un modello 3D tramite fotogrammetria**. Il processo prevede:
+L'approccio implementato è la **misurazione automatica tramite visione artificiale** (OpenCV) su una singola immagine acquisita dal ROV. Non si utilizza software di fotogrammetria esterno.
 
-1. Il ROV manovra manualmente intorno al coral garden raccogliendo immagini da più angolazioni.
-2. Le immagini vengono trasferite al computer della mission station (anche manualmente).
-3. Un software di fotogrammetria (es. **Meshroom**, **COLMAP**, **Reality Capture**) elabora le immagini e ricostruisce il modello 3D.
-4. Il modello viene importato in un programma CAD per la visualizzazione, la scalatura e le misurazioni.
+Il processo prevede:
 
-> È consentito posizionare un oggetto di dimensioni note (es. un righello) vicino al coral garden per facilitare la scalatura. **Attenzione**: tale oggetto conta come debris se non viene rimosso o controllato dal ROV entro la fine del product demonstration time.
+1. Il ROV posiziona un **righello arancione da 50 cm** accanto alla struttura come riferimento metrico.
+2. Il ROV acquisisce **una fotografia** del coral garden dall'alto o di lato.
+3. Lo script `final.py` analizza l'immagine e:
+   - rileva il righello arancione per calcolare la scala pixel/cm
+   - rileva e conta i target colorati (qualsiasi colore eccetto blu dell'acqua)
+   - isola i tubi PVC bianchi e ne misura lunghezza e altezza reale
+4. Le misure vengono scritte automaticamente in `equations.txt`.
+5. SolidWorks legge `equations.txt` come file equazioni e scala il modello CAD (`Coral garden (CAD).SLDPRT`) in automatico.
+
+> **Nota sul righello**: l'oggetto conta come debris se non viene rimosso o controllato dal ROV entro la fine del product demonstration time.
 
 ---
 
-## Pipeline fotogrammetrica
+## Pipeline
 
 ```
-Immagini ROV
-     │
-     ▼
-Software fotogrammetria (Meshroom / COLMAP)
-     │
-     ▼
-Modello 3D (.obj / .ply)
-     │
-     ▼
-Import in CAD (Blender / FreeCAD / Fusion 360)
-     │
-     ▼
-Scalatura con lunghezza vera (fornita dal giudice)
-     │
-     ▼
-Visualizzazione + misura altezza
+Immagine ROV + righello arancione 50 cm
+           │
+           ▼
+      final.py (OpenCV)
+           │
+     ┌─────┼─────────────────────┐
+     ▼     ▼                     ▼
+Scala   Rilevamento         Misura struttura
+pixel   target colorati     PVC (bounding box)
+/cm     (non-blu, forma     → lunghezza, altezza
+        quadrata 4-6 lati)
+           │
+           ▼
+      equations.txt
+      "lunghezza" = X
+      "altezza"   = Y
+           │
+           ▼
+   SolidWorks (equazioni)
+   Coral garden (CAD).SLDPRT
+   → modello scalato automaticamente
+```
+
+---
+
+## Script
+
+| File | Ruolo |
+|---|---|
+| `rilevatore_target.py` | Prototipo iniziale: rileva solo target rosa/magenta |
+| `target.py` | Versione intermedia: scala + misura tubi PVC bianchi |
+| `final.py` | **Script finale**: pipeline completa (scala → target universali → misure PVC → export equazioni CAD) |
+
+### Dettaglio `final.py`
+
+**Fase 1 — Scala pixel/cm**
+Rileva il righello arancione (HSV `[5,150,150]`→`[25,255,255]`) tramite `findContours`, calcola `pixels_per_cm = lunghezza_righello_px / 50`.
+
+**Fase 2 — Rilevamento target**
+Maschera HSV su colori saturi escludendo il blu dell'acqua (`[85,40,40]`→`[135,255,255]`). Filtra le forme con 4–6 lati (quadrati in prospettiva). L'area del righello viene esclusa per evitare falsi positivi.
+
+**Fase 3 — Misura struttura PVC**
+Isola i tubi bianchi (bassa saturazione, alto valore: `[0,0,180]`→`[180,50,255]`), calcola il bounding box di tutti i pixel PVC e converte larghezza e altezza in cm reali.
+
+**Fase 4 — Export CAD**
+Scrive `equations.txt` con i valori `"lunghezza"` e `"altezza"` nel formato che SolidWorks usa come variabili globali.
+
+---
+
+## Utilizzo
+
+```bash
+pip install opencv-python numpy
+python final.py
+```
+
+Lo script è configurato per leggere `righello.jpg`. Per usare un'altra immagine, modificare l'ultima riga di `final.py`:
+
+```python
+analizza_coral_garden_universale('nome_immagine.jpg')
 ```
 
 ---
 
 ## Criteri di punteggio
 
-### Metodo fotogrammetrico (max 40 pt)
+### Metodo fotogrammetrico / CV (max 40 pt)
 
 | Risultato | Punti |
 |---|---|
@@ -69,16 +119,24 @@ Visualizzazione + misura altezza
 | Altezza misurata entro ±5 cm | 10 pt |
 | Modello CAD 3D con misure incluse | 10 pt |
 
-> **Nota**: i punti vengono assegnati **solo per un metodo**. È tuttavia possibile tentare entrambi: se la fotogrammetria ha successo si ottengono fino a 40 pt; se fallisce, si ricevono comunque fino a 30 pt per il modello manuale.
+> **Nota**: i punti vengono assegnati **solo per un metodo**. Se la CV ha successo si ottengono fino a 40 pt; se fallisce, il modello CAD manuale garantisce fino a 30 pt.
 
 ---
 
 ## Requisiti per il product demonstration
 
-- Il modello 3D deve essere **visualizzato su schermo** alla mission station.
+- Il modello 3D (`Coral garden (CAD).SLDPRT`) deve essere **visualizzato su schermo** alla mission station.
 - Deve essere **ruotabile** per consentire al giudice di vederlo da qualsiasi angolazione.
-- Per la fotogrammetria: devono essere visibili i **target colorati**.
-- Per il metodo manuale: le **misure di lunghezza e altezza** devono essere incluse nel modello.
+- I **target colorati** devono essere visibili sul modello.
+- Le **misure di lunghezza e altezza** devono essere incluse.
+
+---
+
+## Note operative
+
+- Richiedere la **lunghezza vera** al giudice subito dopo aver fornito la propria misurazione.
+- Verificare prima della demo che SolidWorks abbia caricato i valori aggiornati da `equations.txt`.
+- I range HSV sono tarati per condizioni di luce normale — in acqua torbida potrebbero essere necessari aggiustamenti.
 
 ---
 
@@ -86,14 +144,14 @@ Visualizzazione + misura altezza
 
 ```
 Task 1.2/
-├── README.md          ← questo file
-└── (script / file CAD / immagini ROV da aggiungere)
+├── README.md
+├── final.py                      ← script principale (usare questo)
+├── target.py                     ← versione precedente (solo PVC)
+├── rilevatore_target.py          ← prototipo iniziale (solo rosa)
+├── equations.txt                 ← output misure → input SolidWorks
+├── Coral garden (CAD).SLDPRT    ← modello SolidWorks con equazioni
+├── righello.jpg                  ← immagine di test
+├── nuova.jpg                     ← immagine di test aggiuntiva
+├── Coral garden.zip              ← archivio progetto
+└── colar_garden.zip              ← archivio progetto (versione precedente)
 ```
-
----
-
-## Note operative
-
-- Richiedere la **lunghezza vera** al giudice subito dopo aver fornito la propria misurazione (senza la misura non si ottiene la lunghezza vera e non si può scalare il modello).
-- Senza scalatura corretta non è possibile ottenere i punti per la stima dell'altezza.
-- Verificare che il software di fotogrammetria riconosca tutti e 8 i target prima della demo.
