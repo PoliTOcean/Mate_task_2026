@@ -46,13 +46,44 @@ Il campione contiene immagini di tre specie (Green Crab, Rock Crab, Jonah Crab).
 
 ---
 
+### [Task 2.2 — Iceberg Threat Level](Task%202.2/README.md)
+
+> **Obiettivo:** valutare il livello di minaccia (verde / giallo / rosso) di un iceberg verso le 4 piattaforme petrolifere dei Grand Banks.
+
+Dato un iceberg (posizione, rotta, profondità della chiglia), il modulo calcola la **closest point of approach (CPA)** verso ciascuna piattaforma a coordinate fisse e classifica la minaccia per la **piattaforma di superficie** e per gli **asset subsea**. Calcolo puro (niente CV / niente modello).
+
+| Componente | Metodo | Max punti |
+|---|---|---|
+| Piattaforme di superficie | CPA + regola del 110% | **10 pt** |
+| Asset subsea | keel_ratio entro 25 NM | **5 pt** |
+
+📁 [`Task 2.2/`](Task%202.2/)
+
+---
+
+### [Task 2.5 — eDNA Frequency Calculator](Task%202.5/README.md)
+
+> **Obiettivo:** calcolare e mostrare la % di frequenza delle 10 specie rilevate dal sensore eDNA.
+
+Ricevuti i conteggi delle 10 specie, il modulo calcola `count / totale * 100` per ognuna e li mostra a schermo per il giudice. Puro calcolo aritmetico.
+
+| Approccio | Metodo | Max punti |
+|---|---|---|
+| **Automatico** | Calcolo % per le 10 specie | **10 pt** |
+
+📁 [`Task 2.5/`](Task%202.5/)
+
+---
+
 ## Riepilogo punteggi
 
 | Task | Descrizione | Max punti |
 |---|---|---|
 | 1.2 | Coral Garden Modelling (computer vision + CAD) | 40 pt |
 | 2.1 | Invasive Species (image recognition + form) | 20 pt |
-| **Totale CS** | | **60 pt** |
+| 2.2 | Iceberg Threat Level (CPA + classificazione) | 15 pt |
+| 2.5 | eDNA Frequency Calculator (calcolo %) | 10 pt |
+| **Totale CS** | | **85 pt** |
 
 ---
 
@@ -84,15 +115,23 @@ Task CS/
 │   ├── nuova.jpg          ← immagine di test
 │   ├── Coral garden.zip
 │   └── colar_garden.zip
-└── Task 2.1/
-    ├── README.md          ← documentazione crab detector
-    ├── best.pt            ← modello YOLOv8 addestrato
-    ├── crab_counter.py    ← script di inferenza
-    ├── train_yolo_colab.ipynb
-    ├── img_generator_colab.ipynb
-    ├── dataset.zip
-    ├── crabs/             ← immagini di riferimento specie
-    └── practice/          ← immagini di test
+├── Task 2.1/
+│   ├── README.md          ← documentazione crab detector
+│   ├── best.pt            ← modello YOLOv8 addestrato
+│   ├── crab_counter.py    ← script di inferenza
+│   ├── train_yolo_colab.ipynb
+│   ├── img_generator_colab.ipynb
+│   ├── dataset.zip
+│   ├── crabs/             ← immagini di riferimento specie
+│   └── practice/          ← immagini di test
+├── Task 2.2/
+│   ├── README.md          ← documentazione iceberg threat
+│   ├── iceberg.py         ← logica pura: evaluate()
+│   └── test_iceberg.py    ← test (CPA + classificazione)
+└── Task 2.5/
+    ├── README.md          ← documentazione eDNA frequency
+    ├── edna.py            ← logica pura: frequency()
+    └── test_edna.py       ← golden test (totale 84)
 ```
 
 ---
@@ -121,4 +160,16 @@ python "Task 1.2/final.py"
 
 ```bash
 python "Task 2.1/crab_counter.py"
+```
+
+### Task 2.2 — Iceberg Threat Level
+
+```bash
+python "Task 2.2/iceberg.py"
+```
+
+### Task 2.5 — eDNA Frequency Calculator
+
+```bash
+python "Task 2.5/edna.py"
 ```
