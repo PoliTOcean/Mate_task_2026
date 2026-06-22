@@ -25,11 +25,11 @@ def aggiorna_equazioni_cad(lunghezza_cm, altezza_cm, file_txt_path="equations.tx
         print(f"Errore durante la scrittura del file delle equazioni: {e}")
 
 
-def analyze(image_path, output_dir=".", equations_path=None):
+def analyze(image_path, output_dir=".", equations_path=None, write_equations=True):
     """Analizza una singola immagine del coral garden e ritorna le misure.
 
-    Pipeline (invariata):
-      Fase 1 - righello arancione -> scala pixel/cm
+    Pipeline:
+      Fase 1 - righello verde -> scala pixel/cm
       Fase 2 - target colorati (non-blu, 4-6 lati) -> conteggio
       Fase 3 - tubi PVC bianchi -> bounding box -> lunghezza/altezza in cm
 
@@ -41,6 +41,9 @@ def analyze(image_path, output_dir=".", equations_path=None):
         image_path: percorso dell'immagine da analizzare.
         output_dir: cartella dove scrivere l'immagine annotata.
         equations_path: percorso del file equations.txt (default: <output_dir>/equations.txt).
+        write_equations: se True scrive equations.txt con le misure di questa immagine.
+            L'aggregatore analyze_pair() lo mette a False per scrivere una sola volta
+            le quote combinate delle due foto (fronte + retro).
 
     Returns:
         dict con chiavi:
@@ -75,17 +78,20 @@ def analyze(image_path, output_dir=".", equations_path=None):
     kernel = np.ones((5, 5), np.uint8)
 
     # =========================================================================
-    # FASE 1: RILEVAMENTO RIGHELLO ARANCIONE (Calcolo Scala)
+    # FASE 1: RILEVAMENTO RIGHELLO VERDE (Calcolo Scala)
     # =========================================================================
     LUNGHEZZA_RIGHELLO_CM = 50.0
-    lower_orange = np.array([5, 150, 150])
-    upper_orange = np.array([25, 255, 255])
+    # Range HSV del verde (OpenCV H 0-180). Distinto dal blu acqua usato in
+    # Fase 2 ([85,40,40]->[135,255,255]); il confine a H=85 evita sovrapposizioni.
+    # Da tarare sull'immagine reale del righello verde.
+    lower_green = np.array([35, 70, 50])
+    upper_green = np.array([85, 255, 255])
 
-    ruler_mask = cv2.inRange(hsv, lower_orange, upper_orange)
+    ruler_mask = cv2.inRange(hsv, lower_green, upper_green)
     ruler_contours, _ = cv2.findContours(ruler_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
     if len(ruler_contours) == 0:
-        print("Errore: Righello arancione non trovato. Impossibile calcolare i cm reali.")
+        print("Errore: Righello verde non trovato. Impossibile calcolare i cm reali.")
         result["error"] = "ruler_not_found"
         return result
 
@@ -96,14 +102,14 @@ def analyze(image_path, output_dir=".", equations_path=None):
     pixels_per_cm = ruler_length_pixels / LUNGHEZZA_RIGHELLO_CM
 
     print(f"--- FASE 1: CALCOLO SCALA ---")
-    print(f"Righello Arancione: {ruler_length_pixels} pixel = 50 cm")
+    print(f"Righello Verde: {ruler_length_pixels} pixel = 50 cm")
     print(f"1 cm = {pixels_per_cm:.2f} pixel\n")
 
     cv2.rectangle(output_img, (x_r, y_r), (x_r + w_r, y_r + h_r), (0, 255, 255), 2)
     cv2.putText(output_img, "RIGHELLO 50cm", (x_r, y_r - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 2)
 
     # =========================================================================
-    # FASE 2: RILEVAMENTO TARGET UNIVERSALE (Qualsiasi Colore, NO BLU)
+    # FASE 2: RILEVAMENTO TARGET UNIVERSALE (Solo Quadrati Colorati, NO BLU, NO BIANCO)
     # =========================================================================
     lower_vibrant = np.array([0, 60, 50])
     upper_vibrant = np.array([180, 255, 255])
@@ -113,8 +119,15 @@ def analyze(image_path, output_dir=".", equations_path=None):
     upper_blue = np.array([135, 255, 255])
     blue_mask = cv2.inRange(hsv, lower_blue, upper_blue)
 
-    # colori accesi - acqua
+    # Bianco/grigio (tubi PVC e quadrati bianchi): bassa saturazione, alto valore.
+    # Vanno esclusi: solo i quadrati COLORATI contano come target.
+    lower_white = np.array([0, 0, 150])
+    upper_white = np.array([180, 60, 255])
+    white_mask = cv2.inRange(hsv, lower_white, upper_white)
+
+    # colori accesi - acqua - bianchi
     target_mask = cv2.bitwise_and(vibrant_mask, cv2.bitwise_not(blue_mask))
+    target_mask = cv2.bitwise_and(target_mask, cv2.bitwise_not(white_mask))
 
     # Escludiamo il righello dall'analisi dei target
     target_mask[y_r:y_r + h_r, x_r:x_r + w_r] = 0
@@ -188,7 +201,8 @@ def analyze(image_path, output_dir=".", equations_path=None):
     print(f"LUNGHEZZA TOTALE STRUTTURA: {lunghezza_tubi_cm:.1f} cm")
     print(f"ALTEZZA TOTALE STRUTTURA: {altezza_tubi_cm:.1f} cm")
 
-    aggiorna_equazioni_cad(lunghezza_tubi_cm, altezza_tubi_cm, equations_path)
+    if write_equations:
+        aggiorna_equazioni_cad(lunghezza_tubi_cm, altezza_tubi_cm, equations_path)
 
     # Disegna il Box Verde dell'ingombro reale richiesto dal regolamento
     cv2.rectangle(output_img, (x_t, y_t), (x_t + w_t, y_t + h_t), (0, 255, 0), 3)
@@ -206,6 +220,73 @@ def analyze(image_path, output_dir=".", equations_path=None):
     result["height_cm"] = round(altezza_tubi_cm, 1)
     result["annotated_path"] = annotated_path
     return result
+
+
+def analyze_pair(image_front, image_back, output_dir=".", equations_path=None):
+    """Analizza la coppia di foto fronte + retro del coral garden e aggrega i risultati.
+
+    Una sola foto non vede tutti gli 8 target (la struttura ne porta alcuni sul
+    lato frontale e altri su quello posteriore): si scattano quindi due foto,
+    una di fronte e una da dietro, con il righello verde da 50 cm spostato in
+    ciascuna (ogni foto ha la sua scala pixel/cm indipendente).
+
+    Aggregazione:
+      - target totali = somma dei target delle due viste, limitata a 8 (gli 8
+        quadrati 10x10 cm del regolamento). Se la somma supera 8 c'e' probabile
+        sovrapposizione/falsi positivi: viene segnalato.
+      - lunghezza = max delle due misure (robusto a occlusioni parziali).
+      - altezza   = max delle due misure (cattura il tee PVC piu' alto).
+    equations.txt viene scritto UNA sola volta con le quote aggregate.
+
+    Returns:
+        dict con: ok, length_cm, height_cm, targets_total, front (dict),
+        back (dict), error.
+    """
+    os.makedirs(output_dir, exist_ok=True)
+    if equations_path is None:
+        equations_path = os.path.join(output_dir, "equations.txt")
+
+    print("=== VISTA FRONTALE ===")
+    r_front = analyze(image_front, output_dir=output_dir, equations_path=equations_path,
+                      write_equations=False)
+    print("\n=== VISTA POSTERIORE ===")
+    r_back = analyze(image_back, output_dir=output_dir, equations_path=equations_path,
+                     write_equations=False)
+
+    combined = {
+        "ok": False,
+        "length_cm": None,
+        "height_cm": None,
+        "targets_total": 0,
+        "front": r_front,
+        "back": r_back,
+        "error": None,
+    }
+
+    targets_sum = r_front["targets_count"] + r_back["targets_count"]
+    if targets_sum > 8:
+        print(f"\nATTENZIONE: rilevati {targets_sum} target (>8): probabile "
+              f"sovrapposizione tra le due viste o falsi positivi. Limito a 8.")
+    combined["targets_total"] = min(8, targets_sum)
+
+    lengths = [r["length_cm"] for r in (r_front, r_back) if r["length_cm"] is not None]
+    heights = [r["height_cm"] for r in (r_front, r_back) if r["height_cm"] is not None]
+
+    if not lengths or not heights:
+        combined["error"] = "measurement_failed"
+        print("\nErrore: nessuna delle due viste ha prodotto misure valide.")
+        return combined
+
+    combined["length_cm"] = round(max(lengths), 1)
+    combined["height_cm"] = round(max(heights), 1)
+    combined["ok"] = True
+
+    print(f"\n--- AGGREGATO FRONTE + RETRO ---")
+    print(f"Target totali (cap 8): {combined['targets_total']}")
+    print(f"LUNGHEZZA: {combined['length_cm']:.1f} cm   ALTEZZA: {combined['height_cm']:.1f} cm")
+    aggiorna_equazioni_cad(combined["length_cm"], combined["height_cm"], equations_path)
+
+    return combined
 
 
 def analizza_coral_garden_universale(image_path):
@@ -230,4 +311,6 @@ def analizza_coral_garden_universale(image_path):
 
 # Esegui il test definitivo (solo da CLI, NON all'import)
 if __name__ == "__main__":
-    analizza_coral_garden_universale('righello.jpg')
+    # Workflow a due foto: vista frontale + vista posteriore (righello verde 50 cm
+    # spostato in ciascuna). Insieme coprono tutti gli 8 target.
+    analyze_pair('fronte.jpg', 'retro.jpg')

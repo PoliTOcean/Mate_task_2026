@@ -8,3 +8,8 @@ __pycache__/
 .venv/
 venv/
 env/
+
+# Task 1.2 — artefatti generati (immagini di test e annotate)
+Task 1.2/fronte.jpg
+Task 1.2/retro.jpg
+Task 1.2/*_annotated.jpg

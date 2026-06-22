@@ -2,58 +2,60 @@
 
 ## Descrizione del task
 
-Il task consiste nella **modellazione 3D del coral garden** presente nel Flume Tank durante il World Championship. Il coral garden è una struttura in pipe PVC da ½ pollice con le seguenti caratteristiche:
+Il task consiste nella **modellazione 3D del coral garden** presente nel Flume Tank (in corrente) durante il World Championship. Il coral garden è una struttura in pipe PVC da ½ pollice con le seguenti caratteristiche (regolamento 2026 EXPLORER, Task 1.2):
 
 - Lunghezza: tra 1 m e 2,5 m
 - Larghezza: circa 36 cm
-- Altezza: non nota a priori
-- **8 target** (quadrati 10 × 10 cm in plastica corrugata colorata) applicati sul PVC
+- Altezza: non nota a priori (include eventuali tee PVC in cima; si misura dal fondo della struttura alla sua sommità)
+- **8 target** (quadrati 10 × 10 cm in plastica corrugata colorata) applicati sul PVC, distribuiti sul lato frontale e su quello posteriore
 
 ---
 
-## Approccio scelto: Computer Vision su singola immagine
+## Approccio scelto: Computer Vision su due foto (fronte + retro)
 
-L'approccio implementato è la **misurazione automatica tramite visione artificiale** (OpenCV) su una singola immagine acquisita dal ROV. Non si utilizza software di fotogrammetria esterno.
+L'approccio implementato è la **misurazione automatica tramite visione artificiale** (OpenCV) a partire da **due fotografie** acquisite dal ROV — una frontale e una posteriore. Una sola foto non vede tutti gli 8 target (alcuni sono sul lato frontale, altri sul retro): le due viste insieme li coprono tutti.
 
 Il processo prevede:
 
-1. Il ROV posiziona un **righello arancione da 50 cm** accanto alla struttura come riferimento metrico.
-2. Il ROV acquisisce **una fotografia** del coral garden dall'alto o di lato.
-3. Lo script `final.py` analizza l'immagine e:
-   - rileva il righello arancione per calcolare la scala pixel/cm
-   - rileva e conta i target colorati (qualsiasi colore eccetto blu dell'acqua)
-   - isola i tubi PVC bianchi e ne misura lunghezza e altezza reale
-4. Le misure vengono scritte automaticamente in `equations.txt`.
-5. SolidWorks legge `equations.txt` come file equazioni e scala il modello CAD (`Coral garden (CAD).SLDPRT`) in automatico.
+1. Il ROV posiziona un **righello verde da 50 cm** accanto alla struttura come riferimento metrico.
+2. Il ROV acquisisce una **foto frontale** del coral garden. Il righello verde deve essere visibile nell'inquadratura.
+3. Il ROV (o l'operatore) **sposta il righello verde** sul lato opposto e acquisisce una **foto posteriore** — anche qui col righello visibile. Ogni foto ha quindi la propria scala pixel/cm indipendente.
+4. Lo script `final.py` analizza entrambe le immagini e:
+   - rileva il righello verde in ciascuna per calcolare la scala pixel/cm
+   - rileva e conta i target colorati (qualsiasi colore eccetto blu dell'acqua) e **somma le due viste** (limite 8)
+   - isola i tubi PVC bianchi e ne misura lunghezza e altezza reale (prende il **max** delle due viste)
+5. Le misure aggregate vengono scritte automaticamente in `equations.txt`.
+6. SolidWorks legge `equations.txt` come file equazioni e scala il modello CAD (`Coral garden (CAD).SLDPRT`) in automatico. **Sul modello vanno posizionati tutti e 8 i target colorati** (≈ quelli visti nelle due foto) così il modello ruotabile li mostra tutti → criterio "8 target = 20 pt".
 
 > **Nota sul righello**: l'oggetto conta come debris se non viene rimosso o controllato dal ROV entro la fine del product demonstration time.
+
+> **Nota onesta sul metodo e i punti**: misurare con la CV e inserire le quote in un modello SolidWorks parametrico è, per il regolamento, il **metodo CAD manuale** (max 30 pt); due foto fronte/retro non sono fotogrammetria multi-view classica. Modellare tutti e 8 i target rafforza comunque la richiesta del criterio "8 target" e massimizza i punti rivendicabili. I giudici assegnano i punti **per un solo metodo**.
 
 ---
 
 ## Pipeline
 
 ```
-Immagine ROV + righello arancione 50 cm
-           │
-           ▼
-      final.py (OpenCV)
-           │
-     ┌─────┼─────────────────────┐
-     ▼     ▼                     ▼
-Scala   Rilevamento         Misura struttura
-pixel   target colorati     PVC (bounding box)
-/cm     (non-blu, forma     → lunghezza, altezza
-        quadrata 4-6 lati)
-           │
-           ▼
-      equations.txt
-      "lunghezza" = X
-      "altezza"   = Y
-           │
-           ▼
-   SolidWorks (equazioni)
-   Coral garden (CAD).SLDPRT
-   → modello scalato automaticamente
+Foto FRONTE + righello verde 50 cm     Foto RETRO + righello verde 50 cm
+           │                                      │
+           ▼                                      ▼
+      analyze() (OpenCV)                     analyze() (OpenCV)
+   scala · target · misure PVC           scala · target · misure PVC
+           │                                      │
+           └──────────────┬───────────────────────┘
+                          ▼
+                  analyze_pair() — aggregazione
+        target = somma (cap 8) · lunghezza/altezza = max
+                          │
+                          ▼
+                     equations.txt
+                     "lunghezza" = X
+                     "altezza"   = Y
+                          │
+                          ▼
+              SolidWorks (equazioni)
+              Coral garden (CAD).SLDPRT
+              → modello scalato + 8 target posizionati
 ```
 
 ---
@@ -63,19 +65,25 @@ pixel   target colorati     PVC (bounding box)
 | File | Ruolo |
 |---|---|
 | `rilevatore_target.py` | Prototipo iniziale: rileva solo target rosa/magenta |
-| `target.py` | Versione intermedia: scala + misura tubi PVC bianchi |
-| `final.py` | **Script finale**: pipeline completa (scala → target universali → misure PVC → export equazioni CAD) |
+| `target.py` | Versione intermedia: scala + misura tubi PVC bianchi (righello verde) |
+| `final.py` | **Script finale**: pipeline completa per coppia fronte/retro (scala → target universali → misure PVC → aggregazione → export equazioni CAD) |
+| `genera_test_verde.py` | Utility: genera immagini di test sintetiche con righello verde da `righello.jpg` |
 
 ### Dettaglio `final.py`
 
+La funzione `analyze(image_path, ...)` elabora **una** immagine; `analyze_pair(fronte, retro, ...)` la richiama su entrambe le foto e aggrega i risultati.
+
 **Fase 1 — Scala pixel/cm**
-Rileva il righello arancione (HSV `[5,150,150]`→`[25,255,255]`) tramite `findContours`, calcola `pixels_per_cm = lunghezza_righello_px / 50`.
+Rileva il righello verde (HSV `[35,70,50]`→`[85,255,255]`) tramite `findContours`, calcola `pixels_per_cm = lunghezza_righello_px / 50`.
 
 **Fase 2 — Rilevamento target**
-Maschera HSV su colori saturi escludendo il blu dell'acqua (`[85,40,40]`→`[135,255,255]`). Filtra le forme con 4–6 lati (quadrati in prospettiva). L'area del righello viene esclusa per evitare falsi positivi.
+Maschera HSV su colori saturi escludendo sia il blu dell'acqua (`[85,40,40]`→`[135,255,255]`) sia il **bianco/grigio** (bassa saturazione, alto valore: `[0,0,150]`→`[180,60,255]`), così i tubi PVC e i **quadrati bianchi vengono ignorati** e contano solo i quadrati colorati. Filtra le forme con 4–6 lati (quadrati in prospettiva). L'area del righello viene esclusa per evitare falsi positivi.
 
 **Fase 3 — Misura struttura PVC**
 Isola i tubi bianchi (bassa saturazione, alto valore: `[0,0,180]`→`[180,50,255]`), calcola il bounding box di tutti i pixel PVC e converte larghezza e altezza in cm reali.
+
+**Aggregazione (`analyze_pair`)**
+Somma i target delle due viste (limitati a 8) e prende il `max` di lunghezza e altezza tra fronte e retro. Scrive `equations.txt` **una sola volta** con le quote aggregate.
 
 **Fase 4 — Export CAD**
 Scrive `equations.txt` con i valori `"lunghezza"` e `"altezza"` nel formato che SolidWorks usa come variabili globali.
@@ -89,10 +97,19 @@ pip install opencv-python numpy
 python final.py
 ```
 
-Lo script è configurato per leggere `righello.jpg`. Per usare un'altra immagine, modificare l'ultima riga di `final.py`:
+Lo script è configurato per leggere `fronte.jpg` e `retro.jpg`. Sostituisci questi due file con le tue foto reali (vista frontale e posteriore, righello verde visibile in ciascuna) e rilancia `python final.py`.
+
+Per provare la pipeline senza foto reali, genera prima immagini di test sintetiche con righello verde:
+
+```bash
+python genera_test_verde.py   # crea fronte.jpg e retro.jpg da righello.jpg
+python final.py
+```
+
+Per cambiare i nomi delle due foto, modificare l'ultima riga di `final.py`:
 
 ```python
-analizza_coral_garden_universale('nome_immagine.jpg')
+analyze_pair('fronte.jpg', 'retro.jpg')
 ```
 
 ---
@@ -146,11 +163,13 @@ analizza_coral_garden_universale('nome_immagine.jpg')
 Task 1.2/
 ├── README.md
 ├── final.py                      ← script principale (usare questo)
+├── genera_test_verde.py          ← genera fronte.jpg/retro.jpg di test (righello verde)
 ├── target.py                     ← versione precedente (solo PVC)
 ├── rilevatore_target.py          ← prototipo iniziale (solo rosa)
 ├── equations.txt                 ← output misure → input SolidWorks
 ├── Coral garden (CAD).SLDPRT    ← modello SolidWorks con equazioni
-├── righello.jpg                  ← immagine di test
+├── fronte.jpg / retro.jpg        ← coppia di foto analizzate (test o reali)
+├── righello.jpg                  ← immagine sorgente (righello originale)
 ├── nuova.jpg                     ← immagine di test aggiuntiva
 ├── Coral garden.zip              ← archivio progetto
 └── colar_garden.zip              ← archivio progetto (versione precedente)

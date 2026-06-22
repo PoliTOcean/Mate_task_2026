@@ -14,25 +14,25 @@ def misura_ingombro_tubi_pvc(image_path):
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
     
     # =========================================================================
-    # DETECT RIGHELLO ARANCIONE (Calcolo Scala)
+    # DETECT RIGHELLO VERDE (Calcolo Scala)
     # =========================================================================
     LUNGHEZZA_RIGHELLO_CM = 50.0
-    lower_orange = np.array([5, 150, 150])   
-    upper_orange = np.array([25, 255, 255])  
-    
-    ruler_mask = cv2.inRange(hsv, lower_orange, upper_orange)
+    lower_green = np.array([35, 70, 50])
+    upper_green = np.array([85, 255, 255])
+
+    ruler_mask = cv2.inRange(hsv, lower_green, upper_green)
     ruler_contours, _ = cv2.findContours(ruler_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    
+
     if len(ruler_contours) == 0:
-        print("Errore: Righello arancione non trovato.")
+        print("Errore: Righello verde non trovato.")
         return
-        
+
     best_ruler = max(ruler_contours, key=cv2.contourArea)
     x_r, y_r, w_r, h_r = cv2.boundingRect(best_ruler)
     pixels_per_cm = w_r / LUNGHEZZA_RIGHELLO_CM
-    
+
     print(f"--- FASE 1: SCALA PIXEL ---")
-    print(f"Righello Arancione: {w_r} pixel = 50 cm")
+    print(f"Righello Verde: {w_r} pixel = 50 cm")
     print(f"1 cm equivale a: {pixels_per_cm:.2f} pixel\n")
     
     # Evidenzia il righello in giallo
