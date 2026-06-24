@@ -1,7 +1,12 @@
 import os
+import sys
 
 import cv2
 import numpy as np
+
+# Permette di importare i moduli fratelli (model_3d, frame) anche quando final.py
+# viene caricato da un'altra CWD (es. da NEXUS via importlib), non solo da CLI.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 
 def aggiorna_equazioni_cad(lunghezza_cm, altezza_cm, file_txt_path="equations.txt"):

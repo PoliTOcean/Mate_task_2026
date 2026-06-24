@@ -3,13 +3,11 @@
 A partire dai risultati di `final.analyze()` per il lato fronte e il lato retro,
 costruisce un modello 3D della struttura:
 
-  - la STRUTTURA in PVC e' ricostruita come un TELAIO DI TUBI: ogni tubo e' un
-    segmento di linea estratto dalla foto (skeleton + HoughLinesP). I tubi del
-    fronte stanno sul piano z=0, quelli del retro sul piano z=profondita', e i
-    due telai sono collegati da traverse lungo la profondita'. Il risultato e'
-    un graticcio fedele alla struttura reale (tubi e vuoti), non un blocco;
-  - tutti i target colorati 10x10 cm sono posizionati al loro posto: fronte su
-    z=0, retro su z=profondita'.
+  - la STRUTTURA in PVC e' un TELAIO A MACROBLOCCHI (vedi frame.py): pochi
+    parallelepipedi uniti (ala sx + torre centrale + ala dx + base) scalati a
+    (L, H, profondita') misurati dalle foto. Sempre intero e connesso;
+  - tutti i target colorati 10x10 cm sono posizionati al loro posto (fronte su
+    z=0, retro su z=profondita'), agganciati al tubo piu' vicino.
 
 Il modello e' mostrabile in una finestra interattiva ruotabile (matplotlib 3D)
 da proiettare alla mission station, ed e' esportabile come file .obj.
@@ -19,7 +17,14 @@ regolamento (~36 cm): con due sole foto non calibrate non ha senso stimarla per
 parallasse.
 """
 
+import os
+import sys
+
 import numpy as np
+
+# Permette di importare il modulo fratello `frame` anche se model_3d viene
+# caricato da un'altra CWD (es. da NEXUS via importlib).
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 DEFAULT_DEPTH_CM = 36.0
 
