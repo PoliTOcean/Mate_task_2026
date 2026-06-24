@@ -1,6 +1,7 @@
-# Task 1.2 — Coral Garden CV
+# Task 1.2 — Coral Garden CV + ricostruzione 3D
 opencv-python
 numpy
+matplotlib
 
 # Task 2.1 — Crab Detector
 ultralytics
