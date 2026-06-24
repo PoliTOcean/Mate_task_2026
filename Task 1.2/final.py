@@ -134,9 +134,13 @@ def analyze(image_path, output_dir=".", equations_path=None,
     has_ruler = (w_r > 0 and h_r > 0)
 
     # =========================================================================
-    # FASE 2: RILEVAMENTO TARGET UNIVERSALE (Qualsiasi Colore, NO BLU)
+    # FASE 2: RILEVAMENTO TARGET UNIVERSALE (Qualsiasi Colore VIVIDO, NO BLU)
     # =========================================================================
-    lower_vibrant = np.array([0, 60, 50])
+    # Saturazione minima alta (90): i target sono plastica corrugata SATURA, il
+    # blu dell'acqua e' escluso a parte, mentre fondali/detriti/legno/ombre sono
+    # desaturati e cadono. Resta valido per qualunque colore vivido del target
+    # (rosa, giallo, verde, arancio...), come da regolamento.
+    lower_vibrant = np.array([0, 90, 50])
     upper_vibrant = np.array([180, 255, 255])
     vibrant_mask = cv2.inRange(hsv, lower_vibrant, upper_vibrant)
 
@@ -176,6 +180,17 @@ def analyze(image_path, output_dir=".", equations_path=None,
                 continue
 
             x_b, y_b, w_b, h_b = cv2.boundingRect(cnt)
+
+            # Filtro dimensione/forma basato sulla SCALA nota: i target sono
+            # quadrati ~10x10 cm. Scartiamo cio' che e' troppo piccolo/grande o
+            # poco quadrato (corde, noodle, riflessi, oggetti dell'ambiente).
+            side_cm_w = w_b / pixels_per_cm
+            side_cm_h = h_b / pixels_per_cm
+            if not (4.0 <= side_cm_w <= 18.0 and 4.0 <= side_cm_h <= 18.0):
+                continue
+            aspect = max(w_b, h_b) / float(min(w_b, h_b) + 1e-9)
+            if aspect > 1.8:  # un quadrato in prospettiva resta ~1:1..1.8
+                continue
 
             # Colore medio reale del target (dentro la sua bounding box, solo i
             # pixel del target) -> servira' a colorare il quadrato nel 3D.

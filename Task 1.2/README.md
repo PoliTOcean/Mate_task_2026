@@ -77,7 +77,7 @@ Foto FRONTE (+righello 50 cm)      Foto RETRO (righello trasparente)
 Rileva il righello arancione (HSV `[5,150,150]`→`[25,255,255]`) tramite `findContours`, calcola `pixels_per_cm = lunghezza_righello_px / 50`. Se si passa `pixels_per_cm` (lato retro col righello trasparente), questa fase viene **saltata** e si riusa la scala fornita.
 
 **Fase 2 — Rilevamento target (posizione + colore)**
-Maschera HSV su colori saturi escludendo il blu dell'acqua (`[85,40,40]`→`[135,255,255]`). Filtra le forme con 4–6 lati (quadrati in prospettiva). Per ogni target salva **centro in cm** (rispetto allo spigolo in basso a sinistra del box PVC) e **colore medio reale** (per il 3D). L'area del righello viene esclusa per evitare falsi positivi.
+Maschera HSV su colori **vividi** (saturazione ≥ 90, qualunque tinta) escludendo il blu dell'acqua (`[85,40,40]`→`[135,255,255]`): fondali/detriti/legno/ombre desaturati cadono, i target colorati restano. Filtra le forme con 4–6 lati e applica un **filtro dimensione basato sulla scala** (i target sono ~10×10 cm: si scartano forme troppo piccole/grandi o poco quadrate — corde, riflessi, oggetti dell'ambiente). Per ogni target salva **centro in cm** (rispetto allo spigolo in basso a sinistra del box PVC) e **colore medio reale** (per il 3D). L'area del righello viene esclusa per evitare falsi positivi.
 
 **Fase 3 — Misura struttura PVC + maschera per la validazione**
 Isola i tubi bianchi (bassa saturazione, alto valore: `[0,0,180]`→`[180,50,255]`), calcola il bounding box di tutti i pixel PVC (→ lunghezza/altezza in cm) ed espone la **maschera PVC** + bbox. È questa maschera che, in `frame.py`, valida quali tubi della griglia candidata esistono davvero (sono coperti da bianco) → telaio fedele e connesso.
