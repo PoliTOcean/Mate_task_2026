@@ -4,11 +4,12 @@ La topologia del coral garden e' NOTA (disegno del manuale MATE 2026): cambiano
 solo le DIMENSIONI. Invece di curare ogni singolo tubo (fragile, lasciava
 frammenti), la struttura e' composta da pochi BLOCCHI 3D (box wireframe) uniti:
 
-  - ALA SINISTRA  : box basso  (~0 -> 28% L, alto y_low)
-  - TORRE CENTRALE: box alto   (~30% -> 78% L, alto y=H)
-  - ALA DESTRA    : box medio  (~78% -> 100% L, alto y_mid)
-  - BASE          : box piatto che corre sotto tutto, unendo i blocchi
+  - ALA SINISTRA  : box basso  (~0 -> 29% L, alto y_low)
+  - TORRE CENTRALE: box alto   (~29% -> 79% L, alto y=H)
+  - ALA DESTRA    : box medio  (~79% -> 100% L, alto y_mid)
 
+I tre box sono ADIACENTI (condividono i bordi verticali) e poggiano a y=0, quindi
+i loro bordi inferiori formano gia' la base continua: nessun box-base separato.
 Ogni box e' un parallelepipedo (12 spigoli) sempre connesso; l'insieme dei box
 forma una struttura unica, intera e riconoscibile. Tutto e' scalato a (L,H,D)
 misurati dalle foto; i target rilevati vengono appoggiati al tubo piu' vicino
@@ -33,7 +34,6 @@ X_R0 = X_T1   # ala dx inizia dove finisce la torre
 Y_LOW = 0.35   # altezza ala sinistra
 Y_MID = 0.52   # altezza ala destra
 Y_TOP = 1.00   # altezza torre
-Y_BASE = 0.12  # spessore della base piatta che unisce i blocchi
 
 
 def _box_edges(x0, x1, y0, y1, z0, z1):
@@ -59,17 +59,16 @@ def build_frame(length_cm, height_cm, depth_cm):
     L, H, D = length_cm, height_cm, depth_cm
     z0, z1 = 0.0, D
 
-    yL, yM, yT, yBase = Y_LOW * H, Y_MID * H, Y_TOP * H, Y_BASE * H
+    yL, yM, yT = Y_LOW * H, Y_MID * H, Y_TOP * H
 
+    # Tre blocchi adiacenti (condividono i bordi verticali) che poggiano a y=0:
+    # i loro bordi inferiori formano gia' la base continua per tutta la
+    # lunghezza, quindi NON serve un box-base separato (evita la doppia linea
+    # orizzontale in basso).
     tubes = []
-    # Base piatta che unisce tutti i blocchi (corre per tutta la lunghezza).
-    tubes += _box_edges(X_L0 * L, X_R1 * L, 0.0, yBase, z0, z1)
-    # Ala sinistra (box basso).
-    tubes += _box_edges(X_L0 * L, X_L1 * L, 0.0, yL, z0, z1)
-    # Torre centrale (box alto).
-    tubes += _box_edges(X_T0 * L, X_T1 * L, 0.0, yT, z0, z1)
-    # Ala destra (box medio).
-    tubes += _box_edges(X_R0 * L, X_R1 * L, 0.0, yM, z0, z1)
+    tubes += _box_edges(X_L0 * L, X_L1 * L, 0.0, yL, z0, z1)   # ala sinistra (basso)
+    tubes += _box_edges(X_T0 * L, X_T1 * L, 0.0, yT, z0, z1)   # torre centrale (alto)
+    tubes += _box_edges(X_R0 * L, X_R1 * L, 0.0, yM, z0, z1)   # ala destra (medio)
 
     return tubes
 

@@ -27,6 +27,9 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 DEFAULT_DEPTH_CM = 36.0
+# Lato dei target: da regolamento Task 1.2 sono quadrati 10x10 cm, TUTTI uguali.
+# Non usiamo la dimensione rilevata (varia per prospettiva): la fissiamo qui.
+TARGET_SIZE_CM = 10.0
 
 
 def _bgr_to_mpl(color_bgr):
@@ -71,14 +74,15 @@ def build_model(front_result, back_result, depth_cm=DEFAULT_DEPTH_CM):
     targets = []
     for side_name, res, _z in sides:
         for t in res.get("targets", []):
-            size_cm = (t["w_cm"] + t["h_cm"]) / 2.0
+            # Tutti i target hanno lato fisso 10x10 cm (regolamento), non la
+            # dimensione rilevata che varia con la prospettiva.
             x_s, y_s, z_s = frame.place_target(
                 t["x_cm"], t["y_cm"], side_name, depth_cm, tubes)
             targets.append({
                 "x_cm": x_s,
                 "y_cm": y_s,
                 "z_cm": z_s,
-                "size_cm": size_cm,
+                "size_cm": TARGET_SIZE_CM,
                 "color": _bgr_to_mpl(t["color_bgr"]),
                 "side": side_name,
             })
