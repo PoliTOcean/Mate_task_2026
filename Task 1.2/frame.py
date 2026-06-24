@@ -110,25 +110,19 @@ def snap_target_to_frame(point, tubes, max_snap_cm=None):
     return (float(best_q[0]), float(best_q[1]), float(best_q[2]))
 
 
-def place_target(x_cm, y_cm, side, depth_cm, tubes, out_cm=1.5, z_tol=8.0):
-    """Posiziona un target sulla faccia esterna del suo lato, attaccato ai tubi.
+def place_target(x_cm, y_cm, side, depth_cm, tubes=None, out_cm=1.5):
+    """Posiziona un target rispettando la posizione REALE rilevata dalla foto.
 
-    Mantiene la X/Y reale rilevata dalla foto, ma:
-      - lo aggancia in (x,y) SOLO ai tubi sul piano del suo lato (fronte z~=0 o
-        retro z~=depth), cosi' non viene tirato verso tubi interni;
-      - lo fa sporgere di out_cm verso l'esterno, cosi' il quadrato e' ben
-        visibile appoggiato alla struttura (fronte: z<0; retro: z>depth).
+    Mantiene la X/Y misurata cosi' com'e' (NON la sposta su un tubo: snappare
+    falsava la posizione tirando i target ai bordi/alla cima). Fissa solo z sul
+    piano del lato (fronte z=0, retro z=depth) e lo fa sporgere di out_cm verso
+    l'esterno, cosi' il quadrato e' ben visibile sulla faccia della struttura.
+
+    `tubes` e' accettato per compatibilita' ma non usato.
 
     Returns:
         (x, y, z) del centro del quadrato target.
     """
     z_side = 0.0 if side == "front" else depth_cm
-    # Solo i tubi che giacciono sul piano del lato (entro z_tol).
-    plane_tubes = [(a, b) for (a, b) in tubes
-                   if abs(a[2] - z_side) <= z_tol and abs(b[2] - z_side) <= z_tol]
-    if plane_tubes:
-        x_s, y_s, _z = snap_target_to_frame((x_cm, y_cm, z_side), plane_tubes)
-    else:
-        x_s, y_s = x_cm, y_cm
     z = z_side - out_cm if side == "front" else z_side + out_cm
-    return (x_s, y_s, z)
+    return (float(x_cm), float(y_cm), z)
