@@ -143,6 +143,10 @@ def show_interactive(model, block=True):
     ax.set_ylabel("Altezza (cm)")
     ax.set_zlabel("Profondita' (cm)")
 
+    # Vista iniziale FRONTALE (lunghezza in orizzontale, altezza in verticale,
+    # come la foto del coral garden); resta comunque ruotabile col mouse.
+    ax.view_init(elev=90, azim=-90)
+
     n_front = sum(1 for t in model["targets"] if t["side"] == "front")
     n_back = sum(1 for t in model["targets"] if t["side"] == "back")
     ax.set_title(
