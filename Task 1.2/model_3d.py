@@ -151,42 +151,78 @@ def show_interactive(model, block=True):
     return fig
 
 
-def export_mesh(model, path):
+def _tube_box(p1, p2, radius_cm):
+    """Vertici (8) e facce (6 quad) di un tubo come parallelepipedo sottile.
+
+    Costruisce un box di sezione 2*radius attorno al segmento p1-p2. I tubi
+    devono essere SOLIDI (facce), non linee: i viewer CAD (Autodesk, Fusion,
+    SolidWorks) renderizzano le facce ma ignorano le primitive linea `l`.
+    """
+    p1 = np.asarray(p1, float)
+    p2 = np.asarray(p2, float)
+    axis = p2 - p1
+    n = np.linalg.norm(axis)
+    if n == 0:
+        axis = np.array([1.0, 0.0, 0.0])
+        n = 1.0
+    axis /= n
+    # Due assi perpendicolari all'asse del tubo.
+    ref = np.array([0.0, 0.0, 1.0]) if abs(axis[2]) < 0.9 else np.array([1.0, 0.0, 0.0])
+    u = np.cross(axis, ref); u /= np.linalg.norm(u)
+    v = np.cross(axis, u)
+    r = radius_cm
+    corners = [(-r, -r), (r, -r), (r, r), (-r, r)]
+    verts = []
+    for base in (p1, p2):
+        for (a, b) in corners:
+            verts.append(tuple(base + a * u + b * v))
+    # Facce del box (indici locali 0-based): 4 laterali + 2 tappi.
+    faces = [
+        (0, 1, 5, 4), (1, 2, 6, 5), (2, 3, 7, 6), (3, 0, 4, 7),
+        (0, 1, 2, 3), (4, 5, 6, 7),
+    ]
+    return verts, faces
+
+
+def export_mesh(model, path, tube_radius_cm=0.8):
     """Esporta il modello come file .obj (testo, nessuna dipendenza extra).
 
-    I tubi sono scritti come linee (`l`), i target come facce quad (`f`).
-    Apribile in qualsiasi viewer 3D esterno (3D Viewer, MeshLab, Blender...).
+    I tubi sono SOLIDI (parallelepipedi sottili, sezione ~1/2") e i target sono
+    facce quad: tutto come facce `f`, cosi' i viewer/CAD (Autodesk Viewer,
+    Fusion 360, SolidWorks, MeshLab, Blender) mostrano la struttura completa.
     """
     lines = ["# Coral Garden 3D model — generato da model_3d.export_mesh"]
     vertices = []
-    edges = []   # coppie di indici 1-based (tubi)
-    faces = []   # quad 1-based (target)
+    faces = []   # tuple di indici 1-based
 
     def add_vertex(p):
         vertices.append(p)
         return len(vertices)  # 1-based
 
-    # Tubi.
+    # Tubi come box solidi.
     for (p1, p2) in model["tubes"]:
-        i1 = add_vertex(p1)
-        i2 = add_vertex(p2)
-        edges.append((i1, i2))
+        vb, fb = _tube_box(p1, p2, tube_radius_cm)
+        base = len(vertices)
+        for p in vb:
+            add_vertex(p)
+        for f in fb:
+            faces.append(tuple(base + i + 1 for i in f))
 
-    # Target.
+    # Target come quad.
     for t in model["targets"]:
         idx = [add_vertex(p) for p in _target_quad(t)]
         faces.append(tuple(idx))
 
     for x, y, z in vertices:
         lines.append(f"v {x:.3f} {y:.3f} {z:.3f}")
-    for a, b in edges:
-        lines.append(f"l {a} {b}")
     for f in faces:
         lines.append("f " + " ".join(str(i) for i in f))
 
     with open(path, "w", encoding="utf-8") as fh:
         fh.write("\n".join(lines) + "\n")
 
+    n_tubes = len(model["tubes"])
     print(f"Modello 3D esportato in '{path}' "
-          f"({len(vertices)} vertici, {len(edges)} tubi, {len(faces)} target).")
+          f"({len(vertices)} vertici, {len(faces)} facce; "
+          f"{n_tubes} tubi solidi + {len(model['targets'])} target).")
     return path
