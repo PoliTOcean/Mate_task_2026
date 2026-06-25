@@ -1,2 +1,2 @@
-"lunghezza" = 98.7
-"altezza" = 41.1
+"lunghezza" = 98.4
+"altezza" = 40.7

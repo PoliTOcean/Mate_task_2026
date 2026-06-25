@@ -31,7 +31,7 @@ def aggiorna_equazioni_cad(lunghezza_cm, altezza_cm, file_txt_path="equations.tx
 
 
 def analyze(image_path, output_dir=".", equations_path=None,
-            pixels_per_cm=None, write_equations=True):
+            pixels_per_cm=None, write_equations=True, sat_min=90):
     """Analizza una singola immagine del coral garden e ritorna le misure.
 
     Pipeline:
@@ -93,23 +93,24 @@ def analyze(image_path, output_dir=".", equations_path=None,
     kernel = np.ones((5, 5), np.uint8)
 
     # =========================================================================
-    # FASE 1: RILEVAMENTO RIGHELLO ARANCIONE (Calcolo Scala)
+    # FASE 1: RILEVAMENTO RIGHELLO VERDE (Calcolo Scala)
     # =========================================================================
     # Il bounding box del righello serve anche per escluderlo dalle fasi 2/3.
     # Quando la scala e' passata dall'esterno (foto del RETRO con righello
     # trasparente) saltiamo la detection: nessuna area da escludere.
+    # Il righello reale e' VERDE: lo isoliamo per tonalita' verde satura.
     LUNGHEZZA_RIGHELLO_CM = 50.0
     x_r = y_r = w_r = h_r = 0
 
     if pixels_per_cm is None:
-        lower_orange = np.array([5, 150, 150])
-        upper_orange = np.array([25, 255, 255])
+        lower_green = np.array([40, 80, 80])
+        upper_green = np.array([85, 255, 255])
 
-        ruler_mask = cv2.inRange(hsv, lower_orange, upper_orange)
+        ruler_mask = cv2.inRange(hsv, lower_green, upper_green)
         ruler_contours, _ = cv2.findContours(ruler_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
         if len(ruler_contours) == 0:
-            print("Errore: Righello arancione non trovato. Impossibile calcolare i cm reali.")
+            print("Errore: Righello verde non trovato. Impossibile calcolare i cm reali.")
             print("        (Per il lato col righello trasparente, passare pixels_per_cm.)")
             result["error"] = "ruler_not_found"
             return result
@@ -121,7 +122,7 @@ def analyze(image_path, output_dir=".", equations_path=None,
         pixels_per_cm = ruler_length_pixels / LUNGHEZZA_RIGHELLO_CM
 
         print(f"--- FASE 1: CALCOLO SCALA ---")
-        print(f"Righello Arancione: {ruler_length_pixels} pixel = 50 cm")
+        print(f"Righello Verde: {ruler_length_pixels} pixel = 50 cm")
         print(f"1 cm = {pixels_per_cm:.2f} pixel\n")
 
         cv2.rectangle(output_img, (x_r, y_r), (x_r + w_r, y_r + h_r), (0, 255, 255), 2)
@@ -140,7 +141,7 @@ def analyze(image_path, output_dir=".", equations_path=None,
     # blu dell'acqua e' escluso a parte, mentre fondali/detriti/legno/ombre sono
     # desaturati e cadono. Resta valido per qualunque colore vivido del target
     # (rosa, giallo, verde, arancio...), come da regolamento.
-    lower_vibrant = np.array([0, 90, 50])
+    lower_vibrant = np.array([0, sat_min, 50])
     upper_vibrant = np.array([180, 255, 255])
     vibrant_mask = cv2.inRange(hsv, lower_vibrant, upper_vibrant)
 
@@ -330,7 +331,7 @@ def analizza_coral_garden_universale(image_path):
 
 def ricostruisci_3d(front_path, back_path=None, depth_cm=36.0,
                     output_dir=".", equations_path="equations.txt",
-                    obj_path="coral_garden.obj", show=True):
+                    obj_path="coral_garden.obj", show=True, sat_min=90):
     """Pipeline completa fronte+retro -> modello 3D + equations.txt + .obj.
 
     1. analizza il fronte (righello arancione -> scala);
@@ -352,7 +353,8 @@ def ricostruisci_3d(front_path, back_path=None, depth_cm=36.0,
 
     print("==================== LATO FRONTE ====================")
     front = analyze(front_path, output_dir=output_dir,
-                    equations_path=equations_path, write_equations=True)
+                    equations_path=equations_path, write_equations=True,
+                    sat_min=sat_min)
     if not front.get("ok"):
         print(f"\nAnalisi del fronte fallita: {front.get('error')}")
         return None
@@ -363,7 +365,7 @@ def ricostruisci_3d(front_path, back_path=None, depth_cm=36.0,
         # Riusa la scala del fronte: il righello del retro e' trasparente.
         back = analyze(back_path, output_dir=output_dir,
                        pixels_per_cm=front["pixels_per_cm"],
-                       write_equations=False)
+                       write_equations=False, sat_min=sat_min)
         if not back.get("ok"):
             print(f"\nAnalisi del retro fallita ({back.get('error')}): "
                   f"procedo con la sola vista frontale.")
@@ -464,7 +466,12 @@ if __name__ == "__main__":
                         help="profondita'/larghezza struttura in cm")
     parser.add_argument("--no-show", action="store_true",
                         help="non aprire il viewer 3D (utile per i test)")
+    parser.add_argument("--sat-min", type=int, default=90,
+                        help="saturazione minima per i target (default 90 per "
+                             "sfondo pulito/gara; abbassare ~40 per foto con "
+                             "target sbiaditi o ambiente reale)")
     args = parser.parse_args()
 
     ricostruisci_3d(args.front, args.back or None,
-                    depth_cm=args.depth, show=not args.no_show)
+                    depth_cm=args.depth, show=not args.no_show,
+                    sat_min=args.sat_min)
